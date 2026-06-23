@@ -184,9 +184,13 @@ hr{border:none;border-top:1px solid var(--bd);margin:22px 0}
 /* PROYECCIÓN MENSUAL */
 .proy-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .month-nav{display:flex;align-items:center;gap:10px}
-.month-nav button{width:30px;height:30px;border-radius:7px;border:1px solid var(--bd2);background:transparent;cursor:pointer;font-size:16px;color:var(--muted);display:flex;align-items:center;justify-content:center;transition:.15s}
-.month-nav button:hover{background:var(--s2);color:var(--txt)}
-.month-label{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;color:var(--txt);min-width:140px;text-align:center}
+.month-nav button{width:36px;height:36px;border-radius:9px;border:1px solid var(--bd2);background:var(--white);cursor:pointer;font-size:20px;color:var(--txt);display:flex;align-items:center;justify-content:center;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.month-nav button:hover{background:var(--s2);border-color:var(--purple);color:var(--purple)}
+.month-label{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;color:var(--txt);min-width:160px;text-align:center}
+
+/* STICKY MES BAR */
+.mes-sticky{position:sticky;top:64px;z-index:90;background:rgba(240,237,231,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--bd);padding:12px 40px;display:flex;align-items:center;justify-content:space-between;margin:0 -40px 24px -40px}
+.mes-sticky-lbl{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .proy-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}
 .proy-card{background:var(--white);border:1px solid var(--bd);border-radius:var(--r);padding:18px 20px;position:relative;overflow:hidden}
 .proy-card-top{position:absolute;top:0;left:0;right:0;height:3px}
@@ -225,6 +229,17 @@ hr{border:none;border-top:1px solid var(--bd);margin:22px 0}
   <button class="btn btn-primary" onclick="openModal()">+ Negocio</button>
   <button class="btn btn-ghost" onclick="openSociosModal()">Socios</button>
 </header>
+
+<!-- MES STICKY BAR -->
+<div class="mes-sticky" id="mes-sticky-bar">
+  <div class="mes-sticky-lbl">📅 Mostrando datos de</div>
+  <div class="month-nav">
+    <button onclick="changeMonth(-1)">&#8249;</button>
+    <div class="month-label" id="month-label">—</div>
+    <button onclick="changeMonth(1)">&#8250;</button>
+  </div>
+  <div class="mes-sticky-lbl" id="mes-sticky-right" style="text-align:right;min-width:120px"></div>
+</div>
 
 <!-- MAIN -->
 <main class="main">
@@ -291,11 +306,6 @@ hr{border:none;border-top:1px solid var(--bd);margin:22px 0}
   <!-- PROYECCIÓN MENSUAL -->
   <div class="proy-hdr">
     <div class="slabel" style="margin-bottom:0">Proyección mensual</div>
-    <div class="month-nav">
-      <button onclick="changeMonth(-1)">&#8249;</button>
-      <div class="month-label" id="month-label">—</div>
-      <button onclick="changeMonth(1)">&#8250;</button>
-    </div>
   </div>
 
   <div class="proy-grid">
@@ -1163,7 +1173,14 @@ function changeMonth(delta){
 
 function renderProy(){
   const label = MESES_ES[proyMes] + ' ' + proyAnio;
-  document.getElementById('month-label').textContent = label;
+  const mlEl=document.getElementById('month-label');
+  if(mlEl) mlEl.textContent = label;
+  // Actualizar info derecha de la barra sticky
+  const srEl=document.getElementById('mes-sticky-right');
+  if(srEl){
+    const adjCount=negocios.filter(n=>n.estado==='adjudicado').length;
+    srEl.textContent=adjCount+' negocio'+(adjCount!==1?'s':'')+' activo'+(adjCount!==1?'s':'');
+  }
 
   // Mes como string YYYY-MM para comparar con fechaInicio
   const mesStr = proyAnio + '-' + String(proyMes+1).padStart(2,'0');
