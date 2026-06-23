@@ -225,6 +225,47 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-he
 .toast.err{background:var(--coral-l);border:1px solid #fca5a5;color:var(--coral)}
 .toast.show{transform:translateY(0);opacity:1}
 
+/* MODAL PERSONA */
+.mo-persona{position:fixed;inset:0;background:rgba(17,24,39,.5);backdrop-filter:blur(4px);z-index:200;display:none;align-items:flex-start;justify-content:flex-end;padding:0}
+.mo-persona.open{display:flex}
+.persona-panel{background:var(--white);width:520px;height:100vh;overflow-y:auto;box-shadow:-8px 0 40px rgba(0,0,0,.15);display:flex;flex-direction:column}
+.persona-header{padding:24px 24px 20px;border-bottom:1px solid var(--bd);position:sticky;top:0;background:var(--white);z-index:10}
+.persona-top{display:flex;align-items:center;gap:14px;margin-bottom:0}
+.persona-av{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;flex-shrink:0}
+.persona-name{font-size:18px;font-weight:800;color:var(--txt);letter-spacing:-.3px}
+.persona-meta{font-size:12px;color:var(--muted);margin-top:2px}
+.persona-close{margin-left:auto;width:32px;height:32px;border-radius:8px;border:1px solid var(--bd);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:16px;transition:.15s;flex-shrink:0}
+.persona-close:hover{background:var(--s1);color:var(--coral)}
+.persona-body{padding:20px 24px;flex:1}
+.persona-totals{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+.p-total-card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:14px 16px}
+.p-total-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:6px}
+.p-total-val{font-size:22px;font-weight:800;letter-spacing:-.5px;line-height:1}
+.p-sec-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px;margin-top:20px;display:flex;align-items:center;justify-content:space-between}
+/* TIMELINE MESES */
+.timeline{display:flex;flex-direction:column;gap:6px;margin-bottom:4px}
+.tl-mes{border:1px solid var(--bd);border-radius:10px;overflow:hidden}
+.tl-mes-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;transition:.15s;user-select:none}
+.tl-mes-header:hover{background:var(--s1)}
+.tl-mes-lbl{font-size:13px;font-weight:600;color:var(--txt)}
+.tl-mes-total{font-size:13px;font-weight:700;color:var(--txt)}
+.tl-mes-body{display:none;border-top:1px solid var(--bd);padding:10px 14px;background:var(--s1)}
+.tl-mes-body.open{display:block}
+.tl-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--bd)}
+.tl-item:last-child{border-bottom:none}
+.tl-item-bar{width:3px;height:28px;border-radius:3px;flex-shrink:0}
+.tl-item-info{flex:1;min-width:0}
+.tl-item-name{font-size:12px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-item-tipo{font-size:10px;color:var(--muted);margin-top:2px}
+.tl-item-monto{font-size:13px;font-weight:700;flex-shrink:0}
+.tl-empty{font-size:12px;color:var(--dim);padding:4px 0}
+/* NEGOCIOS LISTA */
+.p-neg-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s1);border:1px solid var(--bd);border-radius:9px;margin-bottom:6px}
+.p-neg-accent{width:3px;height:30px;border-radius:3px;flex-shrink:0}
+.p-neg-info{flex:1;min-width:0}
+.p-neg-name{font-size:12px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+.p-neg-monto{font-size:13px;font-weight:700;flex-shrink:0}
+
 /* UF INFO */
 .uf-info{font-size:11px;color:var(--muted);margin-top:5px;display:flex;align-items:center;gap:4px}
 
@@ -487,6 +528,25 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-he
   </div>
 </div>
 
+<!-- MODAL PERSONA -->
+<div class="mo-persona" id="mo-persona" onclick="if(event.target===this)closePersona()">
+  <div class="persona-panel" id="persona-panel">
+    <div class="persona-header">
+      <div class="persona-top">
+        <div class="persona-av" id="p-avatar"></div>
+        <div>
+          <div class="persona-name" id="p-name"></div>
+          <div class="persona-meta" id="p-meta"></div>
+        </div>
+        <button class="persona-close" onclick="closePersona()">✕</button>
+      </div>
+    </div>
+    <div class="persona-body" id="persona-body">
+      <div class="loading"><div class="spin"></div> Cargando...</div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -639,7 +699,7 @@ function renderSocios(){
     const rol=isFijo(s.nombre)?'Socio':'Asociado';
     const negAdj=negocios.filter(n=>n.estado==='adjudicado'&&(n.participantes||[]).includes(s.id)).length;
     const negPro=negocios.filter(n=>n.estado==='prospecto'&&(n.participantes||[]).includes(s.id)).length;
-    return `<div class="socio-card" style="border-top:3px solid ${ac}">
+    return `<div class="socio-card" style="border-top:3px solid ${ac};cursor:pointer" onclick="openPersona('${s.id}')" data-tip="Ver detalle de ${s.nombre}">
       <div class="soc-top">
         <div class="soc-av" style="background:${c.bg};color:${c.txt}">${ini(s.nombre)}</div>
         <div>
@@ -1022,6 +1082,206 @@ document.addEventListener('DOMContentLoaded',()=>{
   renderProy();
   document.getElementById('sb-todos').classList.add('active');
 });
+
+// ── Modal Persona ──
+function openPersona(sid){
+  const s=socios.find(x=>x.id===sid);
+  if(!s) return;
+  const idx=socios.indexOf(s);
+  const c=SOC_COLORS[idx%SOC_COLORS.length];
+  const ac=SOC_ACCENTS[idx%SOC_ACCENTS.length];
+  const av=document.getElementById('p-avatar');
+  av.textContent=ini(s.nombre);
+  av.style.background=c.bg;
+  av.style.color=c.txt;
+  av.style.borderTop='3px solid '+ac;
+  document.getElementById('p-name').textContent=s.nombre;
+  const rol=isFijo(s.nombre)?'Socio':'Asociado';
+  const negAdj=negocios.filter(n=>n.estado==='adjudicado'&&(n.participantes||[]).includes(sid)).length;
+  const negPro=negocios.filter(n=>n.estado==='prospecto'&&(n.participantes||[]).includes(sid)).length;
+  document.getElementById('p-meta').textContent=rol+' · '+negAdj+' ganado'+(negAdj!==1?'s':'')+' · '+negPro+' prospecto'+(negPro!==1?'s':'');
+  document.getElementById('mo-persona').classList.add('open');
+  renderPersonaBody(sid, ac);
+}
+
+function closePersona(){
+  document.getElementById('mo-persona').classList.remove('open');
+}
+
+function renderPersonaBody(sid, ac){
+  const body=document.getElementById('persona-body');
+  const misNegs=negocios.filter(n=>(n.participantes||[]).includes(sid));
+  const adjNegs=misNegs.filter(n=>n.estado==='adjudicado');
+  const proNegs=misNegs.filter(n=>n.estado==='prospecto');
+
+  // Totales globales
+  let totalSpot=0, totalRec=0;
+  adjNegs.forEach(n=>{
+    const np=(n.participantes||[]).length||1;
+    if(n.tipo==='spot'||n.tipo==='ambos') totalSpot+=Number(n.montoSpot||0)/np;
+    if(n.tipo==='recurrente'||n.tipo==='ambos') totalRec+=Number(n.montoRec||0)/np;
+  });
+
+  // Generar timeline: 12 meses desde el mes actual
+  const mesActual=new Date().getMonth();
+  const anioActual=new Date().getFullYear();
+  const mesesTimeline=[];
+  for(let i=0;i<12;i++){
+    let m=mesActual+i, a=anioActual;
+    if(m>11){m-=12;a++;}
+    mesesTimeline.push({m,a,str:a+'-'+String(m+1).padStart(2,'0'),lbl:MESES[m]+' '+a});
+  }
+
+  const timelineHTML=mesesTimeline.map((mes,ti)=>{
+    const items=[];
+    // Recurrentes activos en este mes
+    adjNegs.forEach(n=>{
+      if(n.tipo==='recurrente'||n.tipo==='ambos'){
+        const fi=n.fechaInicio||'0000-00';
+        if(!n.fechaInicio||fi<=mes.str){
+          const np=(n.participantes||[]).length||1;
+          const monto=Number(n.montoRec||0)/np;
+          const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
+          items.push({title,monto,tipo:'Recurrente',color:'var(--purple)',bar:'#6366f1'});
+        }
+      }
+    });
+    // Spot que inicia en este mes exacto
+    adjNegs.forEach(n=>{
+      if(n.tipo==='spot'||n.tipo==='ambos'){
+        if(!n.fechaInicio||n.fechaInicio===mes.str){
+          const np=(n.participantes||[]).length||1;
+          const monto=Number(n.montoSpot||0)/np;
+          const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
+          items.push({title,monto,tipo:'Spot',color:'var(--cyan)',bar:'#0ea5e9'});
+        }
+      }
+    });
+    // Prospectos que inciden en este mes
+    proNegs.forEach(n=>{
+      if(n.tipo==='recurrente'||n.tipo==='ambos'){
+        const fi=n.fechaInicio||'0000-00';
+        if(!n.fechaInicio||fi<=mes.str){
+          const np=(n.participantes||[]).length||1;
+          const monto=Number(n.montoRec||0)/np;
+          const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
+          items.push({title,monto,tipo:'Prospecto Rec.',color:'var(--gold)',bar:'#f59e0b',prospecto:true});
+        }
+      }
+      if(n.tipo==='spot'||n.tipo==='ambos'){
+        if(!n.fechaInicio||n.fechaInicio===mes.str){
+          const np=(n.participantes||[]).length||1;
+          const monto=Number(n.montoSpot||0)/np;
+          const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
+          items.push({title,monto,tipo:'Prospecto Spot',color:'var(--gold)',bar:'#f59e0b',prospecto:true});
+        }
+      }
+    });
+
+    const totalMes=items.reduce((s,x)=>s+x.monto,0);
+    const totalAdj=items.filter(x=>!x.prospecto).reduce((s,x)=>s+x.monto,0);
+    const totalPro=items.filter(x=>x.prospecto).reduce((s,x)=>s+x.monto,0);
+
+    const itemsHTML=items.length
+      ? items.map(it=>`<div class="tl-item">
+          <div class="tl-item-bar" style="background:${it.bar}"></div>
+          <div class="tl-item-info">
+            <div class="tl-item-name">${it.title}</div>
+            <div class="tl-item-tipo">${it.tipo}</div>
+          </div>
+          <div class="tl-item-monto" style="color:${it.color}">${fmt(it.monto)}</div>
+        </div>`).join('')
+      : '<div class="tl-empty">Sin ingresos</div>';
+
+    const isFirst=ti===0;
+    return `<div class="tl-mes">
+      <div class="tl-mes-header" onclick="togMes(this)">
+        <div>
+          <div class="tl-mes-lbl">${mes.lbl}${ti===0?' <span style="font-size:10px;color:var(--purple);font-weight:600;margin-left:6px">Este mes</span>':''}</div>
+          ${totalPro>0?`<div style="font-size:10px;color:var(--muted);margin-top:2px">+${fmt(totalPro)} en prospectos</div>`:''}
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="tl-mes-total" style="color:${totalAdj>0?'var(--green)':'var(--dim)'}">${fmt(totalAdj)}</div>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="color:var(--dim);transition:.2s;transform:${isFirst?'rotate(180deg)':'rotate(0)'}"><path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+      <div class="tl-mes-body${isFirst?' open':''}">
+        ${itemsHTML}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Negocios activos
+  const negActivosHTML=adjNegs.map(n=>{
+    const np=(n.participantes||[]).length||1;
+    const monto=n.tipo==='recurrente'?Number(n.montoRec||0)/np:Number(n.montoSpot||0)/np;
+    const sub=n.tipo==='recurrente'?'/mes':n.tipo==='ambos'?'+spot':'único';
+    const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
+    const ac2=n.estado==='adjudicado'?'#10b981':'#f59e0b';
+    return `<div class="p-neg-item">
+      <div class="p-neg-accent" style="background:${ac2}"></div>
+      <div class="p-neg-info">
+        <div class="p-neg-name">${title}</div>
+        <div style="display:flex;gap:5px;margin-top:3px">
+          <span class="pill pill-adj">Adjudicado</span>
+          ${n.tipo==='spot'?'<span class="pill pill-spot">Spot</span>':n.tipo==='recurrente'?'<span class="pill pill-rec">Rec.</span>':'<span class="pill pill-ambos">Ambos</span>'}
+          ${n.fechaInicio?`<span class="pill pill-date">${n.fechaInicio}</span>`:''}
+        </div>
+      </div>
+      <div class="p-neg-monto" style="color:var(--green)">${fmt(monto)}<div style="font-size:10px;color:var(--muted);text-align:right">${sub}</div></div>
+    </div>`;
+  }).join('');
+
+  body.innerHTML=`
+    <div class="persona-totals">
+      <div class="p-total-card" data-tip="Suma de todos los ingresos spot en negocios adjudicados">
+        <div class="p-total-lbl">⚡ Spot total</div>
+        <div class="p-total-val" style="color:var(--cyan)">${fmt(totalSpot)}</div>
+      </div>
+      <div class="p-total-card" data-tip="Ingreso recurrente mensual de negocios adjudicados">
+        <div class="p-total-lbl">🔄 Recurrente / mes</div>
+        <div class="p-total-val" style="color:var(--purple)">${fmt(totalRec)}/mes</div>
+      </div>
+    </div>
+
+    <div class="p-sec-label">
+      <span>📅 Próximos 12 meses</span>
+      <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--dim)">Clic para expandir</span>
+    </div>
+    <div class="timeline">${timelineHTML}</div>
+
+    ${adjNegs.length>0?`
+    <div class="p-sec-label" style="margin-top:24px"><span>🏆 Negocios adjudicados</span></div>
+    ${negActivosHTML}`:''}
+
+    ${proNegs.length>0?`
+    <div class="p-sec-label"><span>🎯 Prospectos</span></div>
+    ${proNegs.map(n=>{
+      const np=(n.participantes||[]).length||1;
+      const monto=n.tipo==='recurrente'?Number(n.montoRec||0)/np:Number(n.montoSpot||0)/np;
+      const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
+      return `<div class="p-neg-item">
+        <div class="p-neg-accent" style="background:#f59e0b"></div>
+        <div class="p-neg-info">
+          <div class="p-neg-name">${title}</div>
+          <div style="display:flex;gap:5px;margin-top:3px">
+            <span class="pill pill-pro">Prospecto</span>
+            ${n.probAdjudicacion!=null?`<span class="pill pill-pct">${n.probAdjudicacion}%</span>`:''}
+            ${n.fechaInicio?`<span class="pill pill-date">${n.fechaInicio}</span>`:''}
+          </div>
+        </div>
+        <div class="p-neg-monto" style="color:var(--gold)">${fmt(monto)}</div>
+      </div>`;
+    }).join('')}`:''}
+  `;
+}
+
+function togMes(header){
+  const body=header.nextElementSibling;
+  const arrow=header.querySelector('svg');
+  const isOpen=body.classList.toggle('open');
+  if(arrow) arrow.style.transform=isOpen?'rotate(180deg)':'rotate(0)';
+}
 
 // ── Seed ──
 async function seed(){
