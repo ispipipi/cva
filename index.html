@@ -714,18 +714,16 @@ function renderSocios(){
         <div class="soc-av" style="background:${c.bg};color:${c.txt}">${ini(s.nombre)}</div>
         <div>
           <div class="soc-name">${s.nombre}</div>
-          <div class="soc-role">${rol} · ${negActivos.length} ganado${negActivos.length!==1?'s':''} · ${negProspectos.length} prospecto${negProspectos.length!==1?'s':''}</div>
+          <div class="soc-role">${rol}</div>
         </div>
       </div>
-      <div class="soc-total">${fmt(total)}</div>
-      <div class="soc-total-lbl">total acumulado</div>
       <div class="soc-breakdown">
         <div class="soc-bl-item">
-          <div class="soc-bl">Spot hasta ${MESES_ES[proyMes]}</div>
+          <div class="soc-bl">⚡ Spot hasta ${MESES_ES[proyMes]}</div>
           <div class="soc-bv" style="color:var(--cyan2)">${fmt(spotAcumSocio)}</div>
         </div>
         <div class="soc-bl-item">
-          <div class="soc-bl">Rec. ${MESES_ES[proyMes]}</div>
+          <div class="soc-bl">🔄 Rec. ${MESES_ES[proyMes]}</div>
           <div class="soc-bv" style="color:var(--purple)">${recMesSocio>0?fmt(recMesSocio)+'/mes':'—'}</div>
         </div>
       </div>
