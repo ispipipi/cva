@@ -620,7 +620,7 @@ function calcSocio(sid){
     :negocios.filter(n=>n.estado==='adjudicado'&&(n.participantes||[]).includes(sid));
   base.forEach(n=>{
     const np=(n.participantes||[]).length||1;
-    const prob=vista==='prospecto'?(n.probAdjudicacion||50)/100:1;
+    const prob=1;
     if(n.tipo==='spot'||n.tipo==='ambos') if(!n.fechaInicio||n.fechaInicio<=mesStr) spot+=Number(n.montoSpot||0)/np*prob;
     if(n.tipo==='recurrente'||n.tipo==='ambos') if(!n.fechaInicio||n.fechaInicio<=mesStr) rec+=Number(n.montoRec||0)/np*prob;
   });
