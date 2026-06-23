@@ -196,7 +196,7 @@ hr{border:none;border-top:1px solid var(--bd);margin:22px 0}
 .month-label{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;color:var(--txt);min-width:130px;text-align:center}
 
 /* STICKY MES BAR */
-.mes-sticky{position:sticky;top:64px;z-index:90;background:rgba(240,237,231,.97);backdrop-filter:blur(10px);border-bottom:1px solid var(--bd);padding:8px 40px;display:flex;align-items:center;justify-content:space-between;margin:0 -40px 20px -40px}
+.mes-sticky{position:sticky;top:64px;z-index:90;background:rgba(240,237,231,.97);backdrop-filter:blur(10px);border-bottom:1px solid var(--bd);padding:10px 40px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 -40px 20px -40px;overflow:visible}
 .mes-sticky-lbl{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .proy-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}
 .proy-card{background:var(--white);border:1px solid var(--bd);border-radius:var(--r);padding:18px 20px;position:relative;overflow:hidden}
@@ -710,25 +710,23 @@ function renderSocios(){
 
     return `<div class="socio-card">
       <div class="socio-card-top" style="background:${bc}"></div>
-      <div class="soc-av" style="background:${c.bg};color:${c.txt}">${ini(s.nombre)}</div>
-      <div style="flex:1">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+      <div class="soc-head">
+        <div class="soc-av" style="background:${c.bg};color:${c.txt}">${ini(s.nombre)}</div>
+        <div>
           <div class="soc-name">${s.nombre}</div>
-          <div style="font-size:10px;color:var(--muted);font-weight:500">${rol}</div>
+          <div class="soc-role">${rol} · ${negActivos.length} ganado${negActivos.length!==1?'s':''} · ${negProspectos.length} prospecto${negProspectos.length!==1?'s':''}</div>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:12px">${negActivos.length} ganado${negActivos.length!==1?'s':''} · ${negProspectos.length} prospecto${negProspectos.length!==1?'s':''}</div>
-        <div class="soc-total">${fmt(total)}</div>
-        <div style="font-size:10px;color:var(--muted);margin-bottom:14px;margin-top:2px">total acumulado (todos los negocios)</div>
-        <div class="soc-breakdown">
-          <div>
-            <div class="soc-bl">Spot hasta ${MESES_ES[proyMes]}</div>
-            <div class="soc-bv" style="color:var(--cyan2)">${fmt(spotAcumSocio)}</div>
-          </div>
-          <div class="soc-div"></div>
-          <div>
-            <div class="soc-bl">Rec. ${MESES_ES[proyMes]}</div>
-            <div class="soc-bv" style="color:var(--purple)">${recMesSocio>0?fmt(recMesSocio)+'/mes':'—'}</div>
-          </div>
+      </div>
+      <div class="soc-total">${fmt(total)}</div>
+      <div class="soc-total-lbl">total acumulado</div>
+      <div class="soc-breakdown">
+        <div class="soc-bl-item">
+          <div class="soc-bl">Spot hasta ${MESES_ES[proyMes]}</div>
+          <div class="soc-bv" style="color:var(--cyan2)">${fmt(spotAcumSocio)}</div>
+        </div>
+        <div class="soc-bl-item">
+          <div class="soc-bl">Rec. ${MESES_ES[proyMes]}</div>
+          <div class="soc-bv" style="color:var(--purple)">${recMesSocio>0?fmt(recMesSocio)+'/mes':'—'}</div>
         </div>
       </div>
     </div>`;
