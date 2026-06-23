@@ -355,6 +355,14 @@ hr{border:none;border-top:1px solid var(--bd);margin:22px 0}
       <input class="fi" id="i-fecha" type="month" />
     </div>
 
+    <div class="fg" id="g-prob" style="display:none">
+      <label class="fl">% Probabilidad de adjudicación</label>
+      <div style="position:relative">
+        <input class="fi" id="i-prob" type="number" min="0" max="100" placeholder="ej. 70" style="padding-right:36px" />
+        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:13px;font-weight:600;color:var(--muted)">%</span>
+      </div>
+    </div>
+
     <div class="fg">
       <label class="fl">Tipo *</label>
       <div class="tg-row">
@@ -730,6 +738,7 @@ function renderNegocios(){
           <div class="neg-name">${n.empresa?'<span style="color:var(--muted);font-weight:500">'+(n.empresa)+'</span> — ':''} ${n.solucion||n.nombre}</div>
           <div class="neg-pills">
             <span class="pill ${isAdj?'pill-adj':'pill-pro'}">${isAdj?'Adjudicado':'Prospecto'}</span>
+            ${!isAdj&&n.probAdjudicacion!=null?`<span class="pill" style="background:rgba(124,109,250,.08);color:#7c6dfa;border-color:rgba(124,109,250,.2)">${n.probAdjudicacion}%</span>`:''}
             ${tp}${fecha}
           </div>
         </div>
@@ -856,7 +865,8 @@ function calcUF(tipo){
 function updFecha(){
   const lbl=document.getElementById('lbl-fecha');
   if(lbl) lbl.textContent=FS.estado==='adjudicado'?'Fecha de inicio':'Fecha probable de inicio';
-  // Siempre visible
+  const gProb=document.getElementById('g-prob');
+  if(gProb) gProb.style.display=FS.estado==='prospecto'?'':'none';
 }
 
 // ── Modal negocio ──
@@ -864,7 +874,7 @@ function openModal(id){
   editId=id||null;
   document.getElementById('mo-title').textContent=id?'Editar Negocio':'Nuevo Negocio';
   // Limpiar campos
-  ['i-empresa','i-solucion','i-spot','i-rec','i-fecha'].forEach(fid=>{
+  ['i-empresa','i-solucion','i-spot','i-rec','i-fecha','i-prob'].forEach(fid=>{
     const el=document.getElementById(fid);
     if(el) el.value='';
   });
@@ -890,6 +900,8 @@ function openModal(id){
       if(ispot) ispot.value=n.montoSpotOrig||n.montoSpot||'';
       if(irec) irec.value=n.montoRecOrig||n.montoRec||'';
       if(ifecha) ifecha.value=n.fechaInicio||'';
+      const iprob=document.getElementById('i-prob');
+      if(iprob) iprob.value=n.probAdjudicacion!=null?n.probAdjudicacion:'';
       // renderChks con participantes del negocio
       renderChks(n.participantes||[]);
     }
@@ -1001,6 +1013,7 @@ async function guardar(){
     montoRec: toClp(recOrig),
     participantes,
     fechaInicio:document.getElementById('i-fecha').value||null,
+    probAdjudicacion:FS.estado==='prospecto'?(Number(document.getElementById('i-prob').value)||null):null,
     ufValorAlGuardar: moneda==='UF'? ufValor : null,
     updatedAt:firebase.firestore.FieldValue.serverTimestamp()
   };
