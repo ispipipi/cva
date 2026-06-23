@@ -304,8 +304,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-he
   <a class="sb-item" id="sb-pro" onclick="setVista('prospecto',this)" data-tip="Ver prospectos en pipeline">
     <span class="sb-item-icon">🎯</span> Prospectos
   </a>
+  <div class="sb-section" style="margin-top:8px">Participantes</div>
+  <div id="sb-participantes"></div>
   <div class="sb-bottom">
-    <div class="sb-ver">CVA v2.1 · NPR</div>
+    <div class="sb-ver">CVA v2.3 · NPR</div>
   </div>
 </nav>
 
@@ -603,7 +605,7 @@ function initListeners(){
     // Deduplicar en memoria
     const seen={};
     socios=raw.filter(x=>{const k=x.nombre.toLowerCase();if(seen[k])return false;seen[k]=true;return true;});
-    renderSocios();renderChks();renderStats();
+    renderSocios();renderChks();renderStats();renderSbParticipantes();
     if(document.getElementById('mo-socios').classList.contains('open')) renderSM();
   },e=>toast('Error Firebase: '+e.code,true));
 
@@ -611,6 +613,9 @@ function initListeners(){
     negocios=s.docs.map(d=>({id:d.id,...d.data()}));
     renderNegocios();renderStats();renderSocios();renderProy();
     document.getElementById('neg-count').textContent=negocios.length;
+    // Refrescar panel persona si está abierto
+    const panelOpen=document.getElementById('mo-persona').classList.contains('open');
+    if(panelOpen && window._personaAbierta) renderPersonaBody(window._personaAbierta, '');
   });
 }
 
@@ -1007,6 +1012,25 @@ async function delNeg(id,nombre){
   catch(e){toast('Error',true);}
 }
 
+// ── Sidebar participantes ──
+function renderSbParticipantes(){
+  const container=document.getElementById('sb-participantes');
+  if(!container) return;
+  if(!socios.length){ container.innerHTML=''; return; }
+  const fijos=socios.filter(s=>isFijo(s.nombre));
+  const asocs=socios.filter(s=>!isFijo(s.nombre));
+  const makeItem=(s,i)=>{
+    const c=SOC_COLORS[i%SOC_COLORS.length];
+    const ac=SOC_ACCENTS[i%SOC_ACCENTS.length];
+    return `<a class="sb-item" onclick="openPersona('${s.id}')" data-tip="Ver ingresos de ${s.nombre}" style="gap:10px">
+      <div style="width:22px;height:22px;border-radius:6px;background:${c.bg};color:${c.txt};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0;border-top:2px solid ${ac}">${ini(s.nombre)}</div>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.nombre}</span>
+      <span style="font-size:9px;color:rgba(255,255,255,.3)">${isFijo(s.nombre)?'socio':'asoc.'}</span>
+    </a>`;
+  };
+  container.innerHTML=[...fijos,...asocs].map((s,i)=>makeItem(s,i)).join('');
+}
+
 // ── Modal socios ──
 function openSociosModal(){renderSM();document.getElementById('mo-socios').classList.add('open');}
 function closeSociosModal(){document.getElementById('mo-socios').classList.remove('open');document.getElementById('i-socio').value='';}
@@ -1100,11 +1124,13 @@ function openPersona(sid){
   const negAdj=negocios.filter(n=>n.estado==='adjudicado'&&(n.participantes||[]).includes(sid)).length;
   const negPro=negocios.filter(n=>n.estado==='prospecto'&&(n.participantes||[]).includes(sid)).length;
   document.getElementById('p-meta').textContent=rol+' · '+negAdj+' ganado'+(negAdj!==1?'s':'')+' · '+negPro+' prospecto'+(negPro!==1?'s':'');
+  window._personaAbierta=sid;
   document.getElementById('mo-persona').classList.add('open');
   renderPersonaBody(sid, ac);
 }
 
 function closePersona(){
+  window._personaAbierta=null;
   document.getElementById('mo-persona').classList.remove('open');
 }
 
