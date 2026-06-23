@@ -98,6 +98,13 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-he
 /* NEGOCIOS */
 .neg-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .tabs{display:flex;background:var(--bg);border:1px solid var(--bd2);border-radius:8px;padding:3px;gap:2px}
+
+/* SELECTOR VISTA DASHBOARD */
+.vista-sel{display:flex;background:var(--white);border:1px solid var(--bd2);border-radius:9px;padding:3px;gap:2px}
+.vista-btn{font-family:'Inter',sans-serif;font-size:12px;font-weight:600;padding:6px 16px;border-radius:7px;border:none;cursor:pointer;transition:.15s;background:transparent;color:var(--muted)}
+.vista-btn.on-todos{background:rgba(27,24,41,.08);color:var(--txt)}
+.vista-btn.on-adj{background:rgba(0,168,114,.1);color:#009e69}
+.vista-btn.on-pro{background:rgba(198,136,0,.1);color:#c68800}
 .tab{font-family:'Inter',sans-serif;font-size:11px;font-weight:500;padding:5px 13px;border-radius:5px;border:none;cursor:pointer;transition:.15s;background:transparent;color:var(--muted)}
 
 .neg-list{display:flex;flex-direction:column;gap:8px}
@@ -232,13 +239,17 @@ hr{border:none;border-top:1px solid var(--bd);margin:22px 0}
 
 <!-- MES STICKY BAR -->
 <div class="mes-sticky" id="mes-sticky-bar">
-  <div class="mes-sticky-lbl">📅 Mostrando datos de</div>
   <div class="month-nav">
     <button onclick="changeMonth(-1)">&#8249;</button>
     <div class="month-label" id="month-label">—</div>
     <button onclick="changeMonth(1)">&#8250;</button>
   </div>
-  <div class="mes-sticky-lbl" id="mes-sticky-right" style="text-align:right;min-width:120px"></div>
+  <div class="vista-sel">
+    <button class="vista-btn on-todos" id="vbtn-todos" onclick="setVista('todos',this)">Todos</button>
+    <button class="vista-btn" id="vbtn-adjudicado" onclick="setVista('adjudicado',this)">✅ Ganados</button>
+    <button class="vista-btn" id="vbtn-prospecto" onclick="setVista('prospecto',this)">🎯 Prospectos</button>
+  </div>
+  <div class="mes-sticky-lbl" id="mes-sticky-right" style="text-align:right;min-width:100px"></div>
 </div>
 
 <!-- MAIN -->
@@ -480,7 +491,7 @@ const firebaseConfig = {
 };
 /* ══════════════════════════════ */
 
-let db, socios=[], negocios=[], currency='CLP', tab='todos', editId=null;
+let db, socios=[], negocios=[], currency='CLP', tab='todos', editId=null, vista='todos';
 const EUR=1100;
 const FS={estado:'adjudicado',tipo:'spot',moneda:'CLP'};
 const SOCIOS_FIJOS=['Julio','Milenko'];
@@ -546,52 +557,80 @@ function fmt(v){
   return (currency==='CLP'?'$':'€')+Math.round(n).toLocaleString('es-CL');
 }
 
+// ── Vista selector ──
+function setVista(v, btn){
+  vista = v;
+  document.querySelectorAll('.vista-btn').forEach(b=>{
+    b.className='vista-btn';
+  });
+  if(btn){
+    btn.classList.add('on-'+v);
+  }
+  renderStats();
+  renderSocios();
+  renderNegocios();
+  renderProy();
+}
+
 // ── Stats ──
 function renderStats(){
-  const adj=negocios.filter(n=>n.estado==='adjudicado');
-  const pro=negocios.filter(n=>n.estado==='prospecto');
+  // Filtrar según vista activa
+  const base = vista==='todos' ? negocios
+    : negocios.filter(n=>n.estado===vista);
+  const adj = vista==='todos' ? negocios.filter(n=>n.estado==='adjudicado')
+    : vista==='adjudicado' ? base : [];
+  const pro = vista==='todos' ? negocios.filter(n=>n.estado==='prospecto')
+    : vista==='prospecto' ? base : [];
 
-  // Mes actual del calendario de proyección
   const mesStr=proyAnio+'-'+String(proyMes+1).padStart(2,'0');
 
-  // SPOT ACUMULADO: todos los spot adjudicados con fechaInicio <= mes del calendario
-  // (o sin fecha = siempre cuenta)
+  // SPOT ACUMULADO al mes
   let spotAcum=0;
   adj.forEach(n=>{
     if(n.tipo==='spot'||n.tipo==='ambos'){
-      const fi=n.fechaInicio||'0000-00';
-      if(!n.fechaInicio || fi<=mesStr){
-        spotAcum+=Number(n.montoSpot||0);
-      }
+      if(!n.fechaInicio||n.fechaInicio<=mesStr) spotAcum+=Number(n.montoSpot||0);
     }
   });
 
-  // RECURRENTE DEL MES: activos en el mes del calendario
+  // RECURRENTE DEL MES
   let recMes=0;
   adj.forEach(n=>{
     if(n.tipo==='recurrente'||n.tipo==='ambos'){
-      const fi=n.fechaInicio||'0000-00';
-      if(!n.fechaInicio || fi<=mesStr){
-        recMes+=Number(n.montoRec||0);
-      }
+      if(!n.fechaInicio||n.fechaInicio<=mesStr) recMes+=Number(n.montoRec||0);
     }
   });
 
-  // ACUMULADO AÑO: spot total + rec * meses desde inicio hasta fin de año
+  // ACUMULADO AÑO
   const mesActual=new Date().getMonth();
   const mesesRestantes=12-mesActual;
-  let recTotal=0;
+  let recTotal=0, spotTotal=0;
   adj.forEach(n=>{
     if(n.tipo==='recurrente'||n.tipo==='ambos') recTotal+=Number(n.montoRec||0);
-  });
-  let spotTotal=0;
-  adj.forEach(n=>{
     if(n.tipo==='spot'||n.tipo==='ambos') spotTotal+=Number(n.montoSpot||0);
   });
   const anual=spotTotal+recTotal*mesesRestantes;
 
-  document.getElementById('s-ganados').textContent=adj.length;
-  document.getElementById('s-prospectos').textContent=pro.length;
+  // Cards de conteo — en vista prospectos mostrar prob promedio
+  const adjAll=negocios.filter(n=>n.estado==='adjudicado');
+  const proAll=negocios.filter(n=>n.estado==='prospecto');
+
+  const gCard=document.getElementById('s-ganados');
+  const pCard=document.getElementById('s-prospectos');
+  if(vista==='prospecto'){
+    // En vista prospectos: mostrar valor ponderado por probabilidad
+    let valorPonderado=0;
+    pro.forEach(n=>{
+      const prob=(n.probAdjudicacion||50)/100;
+      const v=(n.tipo==='spot'||n.tipo==='ambos')?Number(n.montoSpot||0):Number(n.montoRec||0);
+      valorPonderado+=v*prob;
+    });
+    gCard.textContent=adjAll.length;
+    pCard.textContent=pro.length;
+  } else {
+    gCard.textContent=vista==='adjudicado'?adj.length:adjAll.length;
+    pCard.textContent=vista==='adjudicado'?0:proAll.length;
+  }
+
   document.getElementById('s-rec').textContent=fmt(recMes)+'/mes';
   document.getElementById('s-rec-sub').textContent='en '+MESES_ES[proyMes];
   document.getElementById('s-spot').textContent=fmt(spotAcum);
@@ -604,10 +643,15 @@ function renderStats(){
 // ── Socios ──
 function calcSocio(sid){
   let spot=0,rec=0;
-  negocios.filter(n=>n.estado==='adjudicado'&&(n.participantes||[]).includes(sid)).forEach(n=>{
+  // Respetar vista: si es prospecto, calcular valor ponderado por probabilidad
+  const baseNegs = vista==='prospecto'
+    ? negocios.filter(n=>n.estado==='prospecto'&&(n.participantes||[]).includes(sid))
+    : negocios.filter(n=>n.estado==='adjudicado'&&(n.participantes||[]).includes(sid));
+  baseNegs.forEach(n=>{
     const np=(n.participantes||[]).length||1;
-    if(n.tipo==='spot'||n.tipo==='ambos') spot+=Number(n.montoSpot||0)/np;
-    if(n.tipo==='recurrente'||n.tipo==='ambos') rec+=Number(n.montoRec||0)/np;
+    const prob=vista==='prospecto'?(n.probAdjudicacion||50)/100:1;
+    if(n.tipo==='spot'||n.tipo==='ambos') spot+=Number(n.montoSpot||0)/np*prob;
+    if(n.tipo==='recurrente'||n.tipo==='ambos') rec+=Number(n.montoRec||0)/np*prob;
   });
   return{spot,rec};
 }
@@ -722,7 +766,9 @@ function setTab(t,btn){
 
 function renderNegocios(){
   const list=document.getElementById('neg-list');
-  const fil=tab==='todos'?negocios:negocios.filter(n=>n.estado===tab);
+  // Filtrar por vista Y por tab
+  let base2 = vista==='todos' ? negocios : negocios.filter(n=>n.estado===vista);
+  const fil = tab==='todos' ? base2 : base2.filter(n=>n.estado===tab);
   if(!fil.length){
     list.innerHTML=`<div class="empty"><div class="empty-ico">${tab==='adjudicado'?'🏆':tab==='prospecto'?'🎯':'📋'}</div><h3>Sin negocios</h3><p>Agrega tu primer negocio arriba</p></div>`;
     return;
@@ -1185,7 +1231,10 @@ function renderProy(){
   // Mes como string YYYY-MM para comparar con fechaInicio
   const mesStr = proyAnio + '-' + String(proyMes+1).padStart(2,'0');
 
-  const adjudicados = negocios.filter(n => n.estado === 'adjudicado');
+  // Respetar vista
+  const adjudicados = vista==='prospecto'
+    ? negocios.filter(n=>n.estado==='prospecto')
+    : negocios.filter(n => n.estado === 'adjudicado');
 
   // Recurrentes: activos en este mes
   // Un recurrente cuenta si: no tiene fechaInicio (siempre activo)
