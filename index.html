@@ -83,16 +83,16 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-he
 .c-coral{color:var(--coral2)}
 
 /* SOCIOS */
-.socios-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:24px}
-.socio-card{flex:1;background:var(--white);border:1px solid var(--bd);border-radius:var(--r);padding:22px 26px;display:flex;gap:18px;align-items:flex-start;position:relative;overflow:hidden}
+.socios-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:28px}
+.socio-card{flex:1;background:var(--white);border:1px solid var(--bd);border-radius:var(--r);padding:26px 28px;display:flex;gap:20px;align-items:flex-start;position:relative;overflow:hidden}
 .socio-card-top{position:absolute;top:0;left:0;right:0;height:3px}
-.soc-av{width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:19px;flex-shrink:0}
-.soc-name{font-size:15px;font-weight:600;color:var(--txt);margin-bottom:1px}
+.soc-av{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:22px;flex-shrink:0}
+.soc-name{font-size:16px;font-weight:700;color:var(--txt);margin-bottom:2px}
 .soc-role{font-size:11px;color:var(--muted);margin-bottom:14px}
-.soc-total{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:26px;color:var(--txt);line-height:1;margin-bottom:12px}
+.soc-total{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;color:var(--txt);line-height:1;margin-bottom:14px}
 .soc-breakdown{display:flex;gap:18px;align-items:center}
-.soc-bl{font-size:10px;font-weight:600;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px}
-.soc-bv{font-size:13px;font-weight:600}
+.soc-bl{font-size:10px;font-weight:600;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
+.soc-bv{font-size:15px;font-weight:700}
 .soc-div{width:1px;height:26px;background:var(--bd)}
 
 /* NEGOCIOS */
@@ -251,13 +251,13 @@ hr{border:none;border-top:1px solid var(--bd);margin:22px 0}
       <div class="scard-top" style="background:#7c6dfa"></div>
       <div class="scard-lbl">Recurrente / mes</div>
       <div class="scard-val val-md c-purple" id="s-rec">—</div>
-      <div class="scard-sub">ingresos fijos</div>
+      <div class="scard-sub" id="s-rec-sub">ingresos fijos</div>
     </div>
     <div class="scard">
       <div class="scard-top" style="background:#00bde8"></div>
       <div class="scard-lbl">Spot Total</div>
       <div class="scard-val val-md c-cyan" id="s-spot">—</div>
-      <div class="scard-sub">proyectos cerrados</div>
+      <div class="scard-sub" id="s-spot-sub">proyectos cerrados</div>
     </div>
     <div class="scard">
       <div class="scard-top" style="background:#ff5e87"></div>
@@ -465,8 +465,12 @@ const firebaseConfig = {
 let db, socios=[], negocios=[], currency='CLP', tab='todos', editId=null;
 const EUR=1100;
 const FS={estado:'adjudicado',tipo:'spot',moneda:'CLP'};
-const SOCIOS_FIJOS=['Julio','Milenko']; // nombres canónicos — siempre presentes
-let ufValor=null; // valor UF del día
+const SOCIOS_FIJOS=['Julio','Milenko'];
+let ufValor=null;
+// Proyección mensual — inicializar aquí para que renderStats pueda usarlos
+let proyMes=new Date().getMonth();
+let proyAnio=new Date().getFullYear();
+const MESES_ES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 // Paleta socios — colores Claude Design
 const SOC_COLORS=[
@@ -528,21 +532,55 @@ function fmt(v){
 function renderStats(){
   const adj=negocios.filter(n=>n.estado==='adjudicado');
   const pro=negocios.filter(n=>n.estado==='prospecto');
-  let spot=0,rec=0;
+
+  // Mes actual del calendario de proyección
+  const mesStr=proyAnio+'-'+String(proyMes+1).padStart(2,'0');
+
+  // SPOT ACUMULADO: todos los spot adjudicados con fechaInicio <= mes del calendario
+  // (o sin fecha = siempre cuenta)
+  let spotAcum=0;
   adj.forEach(n=>{
-    if(n.tipo==='spot'||n.tipo==='ambos') spot+=Number(n.montoSpot||0);
-    if(n.tipo==='recurrente'||n.tipo==='ambos') rec+=Number(n.montoRec||0);
+    if(n.tipo==='spot'||n.tipo==='ambos'){
+      const fi=n.fechaInicio||'0000-00';
+      if(!n.fechaInicio || fi<=mesStr){
+        spotAcum+=Number(n.montoSpot||0);
+      }
+    }
   });
-  const year=new Date().getFullYear();
-  const meses=12-new Date().getMonth();
-  const anual=spot+rec*meses;
+
+  // RECURRENTE DEL MES: activos en el mes del calendario
+  let recMes=0;
+  adj.forEach(n=>{
+    if(n.tipo==='recurrente'||n.tipo==='ambos'){
+      const fi=n.fechaInicio||'0000-00';
+      if(!n.fechaInicio || fi<=mesStr){
+        recMes+=Number(n.montoRec||0);
+      }
+    }
+  });
+
+  // ACUMULADO AÑO: spot total + rec * meses desde inicio hasta fin de año
+  const mesActual=new Date().getMonth();
+  const mesesRestantes=12-mesActual;
+  let recTotal=0;
+  adj.forEach(n=>{
+    if(n.tipo==='recurrente'||n.tipo==='ambos') recTotal+=Number(n.montoRec||0);
+  });
+  let spotTotal=0;
+  adj.forEach(n=>{
+    if(n.tipo==='spot'||n.tipo==='ambos') spotTotal+=Number(n.montoSpot||0);
+  });
+  const anual=spotTotal+recTotal*mesesRestantes;
+
   document.getElementById('s-ganados').textContent=adj.length;
   document.getElementById('s-prospectos').textContent=pro.length;
-  document.getElementById('s-rec').textContent=fmt(rec)+'/mes';
-  document.getElementById('s-spot').textContent=fmt(spot);
+  document.getElementById('s-rec').textContent=fmt(recMes)+'/mes';
+  document.getElementById('s-rec-sub').textContent='en '+MESES_ES[proyMes];
+  document.getElementById('s-spot').textContent=fmt(spotAcum);
+  document.getElementById('s-spot-sub').textContent='acumulado hasta '+MESES_ES[proyMes];
   document.getElementById('s-anual').textContent=fmt(anual);
-  document.getElementById('anio-lbl').textContent=year;
-  document.getElementById('s-anual-sub').textContent=`${meses} meses restantes`;
+  document.getElementById('anio-lbl').textContent=new Date().getFullYear();
+  document.getElementById('s-anual-sub').textContent=mesesRestantes+' meses restantes';
 }
 
 // ── Socios ──
@@ -571,23 +609,64 @@ function renderSocios(){
     return;
   }
 
+  const mesStr=proyAnio+'-'+String(proyMes+1).padStart(2,'0');
+
   const makeSocioCard=(s,i,esFijo)=>{
     const c=SOC_COLORS[i%SOC_COLORS.length];
     const bc=SOC_BORDER[i%SOC_BORDER.length];
     const{spot,rec}=calcSocio(s.id);
     const total=spot+rec;
-    const rol=esFijo?'Socio':'Asociado';
+    const rol=esFijo?'⭐ Socio':'🤝 Asociado';
+
+    // Negocios activos del socio
+    const negActivos=negocios.filter(n=>n.estado==='adjudicado'&&(n.participantes||[]).includes(s.id));
+    const negProspectos=negocios.filter(n=>n.estado==='prospecto'&&(n.participantes||[]).includes(s.id));
+
+    // Spot acumulado al mes del calendario
+    let spotAcumSocio=0;
+    negActivos.forEach(n=>{
+      if(n.tipo==='spot'||n.tipo==='ambos'){
+        const fi=n.fechaInicio||'0000-00';
+        if(!n.fechaInicio||fi<=mesStr){
+          const np=(n.participantes||[]).length||1;
+          spotAcumSocio+=Number(n.montoSpot||0)/np;
+        }
+      }
+    });
+
+    // Recurrente del mes del calendario
+    let recMesSocio=0;
+    negActivos.forEach(n=>{
+      if(n.tipo==='recurrente'||n.tipo==='ambos'){
+        const fi=n.fechaInicio||'0000-00';
+        if(!n.fechaInicio||fi<=mesStr){
+          const np=(n.participantes||[]).length||1;
+          recMesSocio+=Number(n.montoRec||0)/np;
+        }
+      }
+    });
+
     return `<div class="socio-card">
       <div class="socio-card-top" style="background:${bc}"></div>
       <div class="soc-av" style="background:${c.bg};color:${c.txt}">${ini(s.nombre)}</div>
       <div style="flex:1">
-        <div class="soc-name">${s.nombre}</div>
-        <div class="soc-role">${rol}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+          <div class="soc-name">${s.nombre}</div>
+          <div style="font-size:10px;color:var(--muted);font-weight:500">${rol}</div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px">${negActivos.length} ganado${negActivos.length!==1?'s':''} · ${negProspectos.length} prospecto${negProspectos.length!==1?'s':''}</div>
         <div class="soc-total">${fmt(total)}</div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:14px;margin-top:2px">total acumulado (todos los negocios)</div>
         <div class="soc-breakdown">
-          <div><div class="soc-bl">Spot</div><div class="soc-bv" style="color:var(--cyan2)">${fmt(spot)}</div></div>
+          <div>
+            <div class="soc-bl">Spot hasta ${MESES_ES[proyMes]}</div>
+            <div class="soc-bv" style="color:var(--cyan2)">${fmt(spotAcumSocio)}</div>
+          </div>
           <div class="soc-div"></div>
-          <div><div class="soc-bl">Recurrente</div><div class="soc-bv" style="color:var(--purple)">${rec>0?fmt(rec)+'/mes':'—'}</div></div>
+          <div>
+            <div class="soc-bl">Rec. ${MESES_ES[proyMes]}</div>
+            <div class="soc-bv" style="color:var(--purple)">${recMesSocio>0?fmt(recMesSocio)+'/mes':'—'}</div>
+          </div>
         </div>
       </div>
     </div>`;
@@ -1058,17 +1137,15 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 
-// ── PROYECCIÓN MENSUAL ──
-let proyMes = new Date().getMonth();   // 0-11
-let proyAnio = new Date().getFullYear();
-
-const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+// ── PROYECCIÓN MENSUAL ── (vars declaradas arriba)
 
 function changeMonth(delta){
   proyMes += delta;
   if(proyMes > 11){ proyMes=0; proyAnio++; }
   if(proyMes < 0){ proyMes=11; proyAnio--; }
   renderProy();
+  renderStats();
+  renderSocios();
 }
 
 function renderProy(){
