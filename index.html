@@ -86,7 +86,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-he
 .content{padding:24px 28px;flex:1}
 
 /* STATS */
-.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px}
+.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:24px}
 .scard{background:var(--white);border:1px solid var(--bd);border-radius:var(--r);padding:16px 18px;position:relative;cursor:default}
 .scard:hover{border-color:var(--bd2);box-shadow:0 2px 8px rgba(0,0,0,.06)}
 .scard-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;margin-bottom:10px}
@@ -269,6 +269,21 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-he
 /* UF INFO */
 .uf-info{font-size:11px;color:var(--muted);margin-top:5px;display:flex;align-items:center;gap:4px}
 
+/* ENTIDAD SELECTOR */
+.entidad-sel{display:flex;background:var(--sidebar2);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:3px;gap:2px;margin:12px 8px 4px}
+.entidad-btn{flex:1;font-family:'Inter',sans-serif;font-size:11px;font-weight:600;padding:6px 8px;border-radius:6px;border:none;cursor:pointer;transition:.15s;background:transparent;color:rgba(255,255,255,.45);text-align:center;line-height:1.2}
+.entidad-btn.on{background:var(--purple);color:white}
+.entidad-btn:hover:not(.on){background:rgba(255,255,255,.07);color:rgba(255,255,255,.8)}
+.entidad-tag{font-size:9px;font-weight:400;opacity:.7;display:block}
+
+/* CARD COSTOS OP */
+.scard-op{background:linear-gradient(135deg,#1e1b4b,#312e81);border:1px solid #4338ca;border-radius:var(--r);padding:16px 18px;position:relative;cursor:default}
+.scard-op:hover{box-shadow:0 2px 12px rgba(99,102,241,.3)}
+.scard-op .scard-icon{background:rgba(99,102,241,.3)}
+.scard-op .scard-lbl{color:rgba(255,255,255,.6)}
+.scard-op .scard-val{color:#a5b4fc}
+.scard-op .scard-sub{color:rgba(255,255,255,.4)}
+
 @media(max-width:900px){
   .sidebar{display:none}
   .stats{grid-template-columns:repeat(2,1fr)}
@@ -283,6 +298,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-he
     <div class="sb-logo-npm">NPR</div>
     <div class="sb-logo-title">CVA</div>
     <div class="sb-logo-sub">Control de Ventas</div>
+  </div>
+  <div class="entidad-sel">
+    <button class="entidad-btn on" id="ent-npr" onclick="setEntidad('npr')">NPR<span class="entidad-tag">CLP</span></button>
+    <button class="entidad-btn" id="ent-europa" onclick="setEntidad('europa')">NPR Europa<span class="entidad-tag">EUR / USD</span></button>
   </div>
   <div class="sb-section">Principal</div>
   <a class="sb-item active" data-tip="Vista general del pipeline">
@@ -367,6 +386,12 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-he
         <div class="scard-lbl">Acumulado <span id="anio-lbl">2026</span></div>
         <div class="scard-val" id="s-anual" style="color:var(--coral)">—</div>
         <div class="scard-sub" id="s-anual-sub">proyectado</div>
+      </div>
+      <div class="scard scard-op" data-tip="10% de costos operacionales descontado del ingreso de cada socio — fondo acumulado">
+        <div class="scard-icon">⚙️</div>
+        <div class="scard-lbl">Fondo Operación</div>
+        <div class="scard-val" id="s-op">—</div>
+        <div class="scard-sub">10% acumulado</div>
       </div>
     </div>
 
@@ -570,8 +595,12 @@ const firebaseConfig = {
 let db,socios=[],negocios=[],currency='CLP',tab='todos',editId=null,vista='todos';
 const EUR=1100;
 const FS={estado:'adjudicado',tipo:'spot',moneda:'CLP'};
-const SOCIOS_FIJOS=['Julio','Milenko'];
+const SOCIOS_FIJOS_NPR=['Julio','Milenko'];
+const SOCIOS_FIJOS_EUROPA=['Julio','Milenko','Ivan'];
+let SOCIOS_FIJOS=SOCIOS_FIJOS_NPR;
+let entidad='npr'; // 'npr' | 'europa'
 let ufValor=null;
+const OP_PCT=0.10; // 10% costos operación
 let proyMes=new Date().getMonth();
 let proyAnio=new Date().getFullYear();
 const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -599,38 +628,80 @@ try{
   renderStats();renderProy();
 }
 
+let _unsubSocios=null, _unsubNegocios=null;
 function initListeners(){
-  db.collection('cva_socios').orderBy('createdAt').onSnapshot(s=>{
+  // Cancelar listeners anteriores
+  if(_unsubSocios) _unsubSocios();
+  if(_unsubNegocios) _unsubNegocios();
+
+  const colSocios=entidad==='europa'?'cva_socios_europa':'cva_socios';
+  const colNegocios=entidad==='europa'?'cva_negocios_europa':'cva_negocios';
+
+  _unsubSocios=db.collection(colSocios).orderBy('createdAt').onSnapshot(s=>{
     const raw=s.docs.map((d,i)=>({id:d.id,...d.data(),ci:i}));
-    // Deduplicar en memoria
     const seen={};
     socios=raw.filter(x=>{const k=x.nombre.toLowerCase();if(seen[k])return false;seen[k]=true;return true;});
     renderSocios();renderChks();renderStats();renderSbParticipantes();
     if(document.getElementById('mo-socios').classList.contains('open')) renderSM();
+    seed(); // asegurar socios fijos
   },e=>toast('Error Firebase: '+e.code,true));
 
-  db.collection('cva_negocios').orderBy('createdAt','desc').onSnapshot(s=>{
+  _unsubNegocios=db.collection(colNegocios).orderBy('createdAt','desc').onSnapshot(s=>{
     negocios=s.docs.map(d=>({id:d.id,...d.data()}));
     renderNegocios();renderStats();renderSocios();renderProy();
     document.getElementById('neg-count').textContent=negocios.length;
-    // Refrescar panel persona si está abierto
     const panelOpen=document.getElementById('mo-persona').classList.contains('open');
-    if(panelOpen && window._personaAbierta) renderPersonaBody(window._personaAbierta, '');
+    if(panelOpen && window._personaAbierta) renderPersonaBody(window._personaAbierta,'');
   });
 }
 
 // ── Moneda ──
 function setCurrency(c){
-  currency=c;
+  // En europa CLP button actúa como USD
+  currency=entidad==='europa'&&c==='CLP'?'USD':c;
   document.getElementById('btn-clp').classList.toggle('on',c==='CLP');
   document.getElementById('btn-eur').classList.toggle('on',c==='EUR');
   renderStats();renderSocios();renderNegocios();renderProy();
 }
 function fmt(v){
-  if(!v||isNaN(v)) return currency==='CLP'?'$0':'€0';
+  if(!v||isNaN(v)) return currency==='CLP'?'$0':currency==='USD'?'US$0':'€0';
   let n=Number(v);
-  if(currency==='EUR') n=n/EUR;
-  return (currency==='CLP'?'$':'€')+Math.round(n).toLocaleString('es-CL');
+  if(currency==='EUR'&&entidad==='npr') n=n/EUR;
+  if(currency==='USD') n=n; // Europa ya guarda en USD/EUR
+  const sym=currency==='EUR'?'€':currency==='USD'?'US$':'$';
+  return sym+Math.round(n).toLocaleString('es-CL');
+}
+
+// ── Entidad ──
+function setEntidad(e){
+  entidad=e;
+  SOCIOS_FIJOS=e==='europa'?SOCIOS_FIJOS_EUROPA:SOCIOS_FIJOS_NPR;
+
+  // Toggle botones sidebar
+  document.getElementById('ent-npr').classList.toggle('on',e==='npr');
+  document.getElementById('ent-europa').classList.toggle('on',e==='europa');
+
+  // Cambiar moneda automática
+  if(e==='europa'){
+    currency='EUR';
+    document.getElementById('btn-clp').classList.remove('on');
+    document.getElementById('btn-eur').classList.add('on');
+    // Cambiar label moneda a EUR/USD
+    document.getElementById('btn-clp').textContent='USD';
+    document.getElementById('btn-eur').textContent='EUR';
+  } else {
+    currency='CLP';
+    document.getElementById('btn-clp').classList.add('on');
+    document.getElementById('btn-eur').classList.remove('on');
+    document.getElementById('btn-clp').textContent='CLP';
+    document.getElementById('btn-eur').textContent='EUR';
+  }
+
+  // Actualizar título topbar
+  document.querySelector('.topbar-title').innerHTML=`${e==='europa'?'NPR Europa':'NPR'} — Dashboard <span class="topbar-sub" id="vista-lbl">— Todos los negocios</span>`;
+
+  // Reiniciar listeners con colecciones correctas
+  if(db) initListeners();
 }
 
 // ── Vista ──
@@ -665,15 +736,24 @@ function renderStats(){
   });
   const anual=spotTot+recTot*mesesRest;
 
+  // Fondo operación = 10% del total bruto acumulado
+  let fondoOp=0;
+  adjAll.forEach(n=>{
+    if(n.tipo==='spot'||n.tipo==='ambos') fondoOp+=Number(n.montoSpot||0)*OP_PCT;
+    if(n.tipo==='recurrente'||n.tipo==='ambos') fondoOp+=Number(n.montoRec||0)*mesesRest*OP_PCT;
+  });
+
   document.getElementById('s-ganados').textContent=adjAll.length;
   document.getElementById('s-prospectos').textContent=proAll.length;
-  document.getElementById('s-rec').textContent=fmt(recMes)+'/mes';
-  document.getElementById('s-rec-sub').textContent='en '+MESES[proyMes];
-  document.getElementById('s-spot').textContent=fmt(spotAcum);
-  document.getElementById('s-spot-sub').textContent='hasta '+MESES[proyMes];
-  document.getElementById('s-anual').textContent=fmt(anual);
+  document.getElementById('s-rec').textContent=fmt(recMes*(1-OP_PCT))+'/mes';
+  document.getElementById('s-rec-sub').textContent='neto en '+MESES[proyMes];
+  document.getElementById('s-spot').textContent=fmt(spotAcum*(1-OP_PCT));
+  document.getElementById('s-spot-sub').textContent='neto hasta '+MESES[proyMes];
+  document.getElementById('s-anual').textContent=fmt(anual*(1-OP_PCT));
   document.getElementById('anio-lbl').textContent=new Date().getFullYear();
   document.getElementById('s-anual-sub').textContent=mesesRest+' meses restantes';
+  const sop=document.getElementById('s-op');
+  if(sop) sop.textContent=fmt(fondoOp);
 }
 
 // ── Socios ──
@@ -685,9 +765,8 @@ function calcSocio(sid){
     :negocios.filter(n=>n.estado==='adjudicado'&&(n.participantes||[]).includes(sid));
   base.forEach(n=>{
     const np=(n.participantes||[]).length||1;
-    const prob=1;
-    if(n.tipo==='spot'||n.tipo==='ambos') if(!n.fechaInicio||n.fechaInicio<=mesStr) spot+=Number(n.montoSpot||0)/np*prob;
-    if(n.tipo==='recurrente'||n.tipo==='ambos') if(!n.fechaInicio||n.fechaInicio<=mesStr) rec+=Number(n.montoRec||0)/np*prob;
+    if(n.tipo==='spot'||n.tipo==='ambos') if(!n.fechaInicio||n.fechaInicio<=mesStr) spot+=Number(n.montoSpot||0)/np*(1-OP_PCT);
+    if(n.tipo==='recurrente'||n.tipo==='ambos') if(!n.fechaInicio||n.fechaInicio<=mesStr) rec+=Number(n.montoRec||0)/np*(1-OP_PCT);
   });
   return{spot,rec};
 }
@@ -1001,14 +1080,16 @@ async function guardar(){
     updatedAt:firebase.firestore.FieldValue.serverTimestamp()
   };
   try{
-    if(editId){await db.collection('cva_negocios').doc(editId).update(data);toast('Negocio actualizado ✓');}
-    else{data.createdAt=firebase.firestore.FieldValue.serverTimestamp();await db.collection('cva_negocios').add(data);toast('Negocio guardado ✓');}
+    const colN=entidad==='europa'?'cva_negocios_europa':'cva_negocios';
+    if(editId){await db.collection(colN).doc(editId).update(data);toast('Negocio actualizado ✓');}
+    else{data.createdAt=firebase.firestore.FieldValue.serverTimestamp();await db.collection(colN).add(data);toast('Negocio guardado ✓');}
     closeModal();
   }catch(e){toast('Error: '+e.message,true);}
 }
 async function delNeg(id,nombre){
   if(!confirm(`¿Eliminar "${nombre}"?`)) return;
-  try{await db.collection('cva_negocios').doc(id).delete();toast('Eliminado');}
+  const colND=entidad==='europa'?'cva_negocios_europa':'cva_negocios';
+  try{await db.collection(colND).doc(id).delete();toast('Eliminado');}
   catch(e){toast('Error',true);}
 }
 
@@ -1065,7 +1146,8 @@ async function addSocio(){
   if(socios.some(s=>s.nombre.toLowerCase()===n.toLowerCase())){toast(n+' ya existe',true);inp.value='';inp.focus();return;}
   setSocioLoading(true);
   try{
-    await db.collection('cva_socios').add({nombre:n,tipo:'asociado',createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    const colAS=entidad==='europa'?'cva_socios_europa':'cva_socios';
+    await db.collection(colAS).add({nombre:n,tipo:'asociado',createdAt:firebase.firestore.FieldValue.serverTimestamp()});
     inp.value='';inp.focus();
     toast(n+' agregado ✓ — puedes agregar otro');
   }catch(e){toast('Error: '+e.message,true);}
@@ -1078,13 +1160,15 @@ async function delSocio(id,nombre){
   if(btn){btn.disabled=true;btn.textContent='Eliminando…';}
   if(row) row.style.opacity='.5';
   try{
+    const colSD=entidad==='europa'?'cva_socios_europa':'cva_socios';
+    const colND2=entidad==='europa'?'cva_negocios_europa':'cva_negocios';
     const afectados=negocios.filter(n=>(n.participantes||[]).includes(id));
     if(afectados.length){
       const batch=db.batch();
-      afectados.forEach(n=>batch.update(db.collection('cva_negocios').doc(n.id),{participantes:n.participantes.filter(p=>p!==id)}));
+      afectados.forEach(n=>batch.update(db.collection(colND2).doc(n.id),{participantes:n.participantes.filter(p=>p!==id)}));
       await batch.commit();
     }
-    await db.collection('cva_socios').doc(id).delete();
+    await db.collection(colSD).doc(id).delete();
     toast(nombre+' eliminado');
   }catch(e){
     toast('Error: '+e.message,true);
@@ -1144,8 +1228,8 @@ function renderPersonaBody(sid, ac){
   let totalSpot=0, totalRec=0;
   adjNegs.forEach(n=>{
     const np=(n.participantes||[]).length||1;
-    if(n.tipo==='spot'||n.tipo==='ambos') totalSpot+=Number(n.montoSpot||0)/np;
-    if(n.tipo==='recurrente'||n.tipo==='ambos') totalRec+=Number(n.montoRec||0)/np;
+    if(n.tipo==='spot'||n.tipo==='ambos') totalSpot+=Number(n.montoSpot||0)/np*(1-OP_PCT);
+    if(n.tipo==='recurrente'||n.tipo==='ambos') totalRec+=Number(n.montoRec||0)/np*(1-OP_PCT);
   });
 
   // Generar timeline: 12 meses desde el mes actual
@@ -1313,16 +1397,18 @@ function togMes(header){
 async function seed(){
   if(!db) return;
   try{
-    const snap=await db.collection('cva_socios').get();
+    const col=entidad==='europa'?'cva_socios_europa':'cva_socios';
+    const snap=await db.collection(col).get();
     const docs=snap.docs;
     const seen={};
     for(const doc of docs){
       const k=doc.data().nombre.toLowerCase();
-      if(seen[k]){await db.collection('cva_socios').doc(doc.id).delete();}
-      else{seen[k]=true;if(SOCIOS_FIJOS.some(f=>f.toLowerCase()===k)&&doc.data().tipo!=='socio') await db.collection('cva_socios').doc(doc.id).update({tipo:'socio'});}
+      if(seen[k]){await db.collection(col).doc(doc.id).delete();}
+      else{seen[k]=true;if(SOCIOS_FIJOS.some(f=>f.toLowerCase()===k)&&doc.data().tipo!=='socio') await db.collection(col).doc(doc.id).update({tipo:'socio'});}
     }
+    const ts=firebase.firestore.FieldValue.serverTimestamp();
     for(const nombre of SOCIOS_FIJOS){
-      if(!seen[nombre.toLowerCase()]) await db.collection('cva_socios').add({nombre,tipo:'socio',createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+      if(!seen[nombre.toLowerCase()]) await db.collection(col).add({nombre,tipo:'socio',createdAt:ts});
     }
   }catch(e){console.error('Seed error:',e);}
 }
