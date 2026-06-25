@@ -219,6 +219,16 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-he
 /* NOTICE */
 .notice{background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#92400e;display:flex;align-items:center;gap:8px}
 
+/* SWITCH */
+.switch-wrap{display:flex;align-items:center;gap:10px;background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;margin-bottom:16px}
+.switch-lbl{font-size:12px;font-weight:500;color:var(--txt2);flex:1}
+.switch{position:relative;width:36px;height:20px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.switch-slider{position:absolute;cursor:pointer;inset:0;background:var(--bd2);border-radius:20px;transition:.2s}
+.switch-slider::before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:white;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.switch input:checked+.switch-slider{background:var(--purple)}
+.switch input:checked+.switch-slider::before{transform:translateX(16px)}
+
 /* TOAST */
 .toast{position:fixed;bottom:20px;right:20px;padding:10px 16px;border-radius:8px;font-weight:500;font-size:13px;z-index:300;transform:translateY(60px);opacity:0;transition:all .25s;pointer-events:none;font-family:'Inter',sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.15)}
 .toast.ok{background:#111827;color:#fff}
@@ -566,6 +576,13 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-he
           <div class="persona-meta" id="p-meta"></div>
         </div>
         <button class="persona-close" onclick="closePersona()">✕</button>
+      </div>
+      <div class="switch-wrap" style="margin-top:14px;margin-bottom:0">
+        <span class="switch-lbl" id="switch-pct-lbl">Proyectar valor completo</span>
+        <label class="switch">
+          <input type="checkbox" id="switch-pct" onchange="togglePctMode(this.checked)">
+          <span class="switch-slider"></span>
+        </label>
       </div>
     </div>
     <div class="persona-body" id="persona-body">
@@ -1159,10 +1176,14 @@ function renderSM(){
   const asocs=socios.filter(s=>!isFijo(s.nombre));
   const makeRow=(s,i,fixed)=>{
     const c=SOC_COLORS[i%SOC_COLORS.length];
-    return `<div class="sm-row" id="smrow-${s.id}">
-      <div style="width:30px;height:30px;border-radius:7px;background:${c.bg};color:${c.txt};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${ini(s.nombre)}</div>
+    const ac=SOC_ACCENTS[i%SOC_ACCENTS.length];
+    return `<div class="sm-row" id="smrow-${s.id}" style="cursor:pointer" onclick="closeSociosModal();openPersona('${s.id}')">
+      <div style="width:30px;height:30px;border-radius:7px;background:${c.bg};color:${c.txt};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;border-top:2px solid ${ac}">${ini(s.nombre)}</div>
       <div class="sm-nm">${s.nombre}<span class="sm-tag"> · ${fixed?'socio':'asociado'}</span></div>
-      ${fixed?'<span class="sm-fixed-tag">Siempre activo</span>':`<button class="btn-del" id="delbtn-${s.id}" onclick="delSocio('${s.id}','${esc(s.nombre)}')">Eliminar</button>`}
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:10px;color:var(--purple);font-weight:500">Ver ficha →</span>
+        ${fixed?'':`<button class="btn-del" id="delbtn-${s.id}" onclick="event.stopPropagation();delSocio('${s.id}','${esc(s.nombre)}')">Eliminar</button>`}
+      </div>
     </div>`;
   };
   const lf=document.getElementById('sm-socios-list');
@@ -1231,6 +1252,15 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 // ── Modal Persona ──
+let _pctMode=false; // false=valor completo, true=ponderado por %
+
+function togglePctMode(checked){
+  _pctMode=checked;
+  const lbl=document.getElementById('switch-pct-lbl');
+  if(lbl) lbl.textContent=checked?'Proyectar por % probabilidad':'Proyectar valor completo';
+  if(window._personaAbierta) renderPersonaBody(window._personaAbierta,'');
+}
+
 function openPersona(sid){
   const s=socios.find(x=>x.id===sid);
   if(!s) return;
@@ -1248,6 +1278,12 @@ function openPersona(sid){
   const negPro=negocios.filter(n=>n.estado==='prospecto'&&(n.participantes||[]).includes(sid)).length;
   document.getElementById('p-meta').textContent=rol+' · '+negAdj+' ganado'+(negAdj!==1?'s':'')+' · '+negPro+' prospecto'+(negPro!==1?'s':'');
   window._personaAbierta=sid;
+  // Resetear switch a valor completo
+  _pctMode=false;
+  const swEl=document.getElementById('switch-pct');
+  if(swEl) swEl.checked=false;
+  const swLbl=document.getElementById('switch-pct-lbl');
+  if(swLbl) swLbl.textContent='Proyectar valor completo';
   document.getElementById('mo-persona').classList.add('open');
   renderPersonaBody(sid, ac);
 }
