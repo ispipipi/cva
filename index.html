@@ -1257,7 +1257,7 @@ let _pctMode=false; // false=valor completo, true=ponderado por %
 function togglePctMode(checked){
   _pctMode=checked;
   const lbl=document.getElementById('switch-pct-lbl');
-  if(lbl) lbl.textContent=checked?'Proyectar por % probabilidad':'Proyectar valor completo';
+  if(lbl) lbl.textContent=checked?'Prospectos: monto ponderado por % de adjudicación':'Prospectos: monto completo (ignora % adjudicación)';
   if(window._personaAbierta) renderPersonaBody(window._personaAbierta,'');
 }
 
@@ -1283,7 +1283,7 @@ function openPersona(sid){
   const swEl=document.getElementById('switch-pct');
   if(swEl) swEl.checked=false;
   const swLbl=document.getElementById('switch-pct-lbl');
-  if(swLbl) swLbl.textContent='Proyectar valor completo';
+  if(swLbl) swLbl.textContent='Prospectos: monto completo (ignora % adjudicación)';
   document.getElementById('mo-persona').classList.add('open');
   renderPersonaBody(sid, ac);
 }
@@ -1299,73 +1299,77 @@ function renderPersonaBody(sid, ac){
   const adjNegs=misNegs.filter(n=>n.estado==='adjudicado');
   const proNegs=misNegs.filter(n=>n.estado==='prospecto');
 
-  // Totales globales
-  let totalSpot=0, totalRec=0;
+  // Totales globales del socio (adjudicados, neto 10%)
+  let totalSpot=0,totalRec=0;
   adjNegs.forEach(n=>{
     const np=(n.participantes||[]).length||1;
     if(n.tipo==='spot'||n.tipo==='ambos') totalSpot+=Number(n.montoSpot||0)/np*(1-OP_PCT);
     if(n.tipo==='recurrente'||n.tipo==='ambos') totalRec+=Number(n.montoRec||0)/np*(1-OP_PCT);
   });
 
-  // Generar timeline: 12 meses desde el mes actual
+  // Timeline 12 meses
   const mesActual=new Date().getMonth();
   const anioActual=new Date().getFullYear();
   const mesesTimeline=[];
   for(let i=0;i<12;i++){
-    let m=mesActual+i, a=anioActual;
+    let m=mesActual+i,a=anioActual;
     if(m>11){m-=12;a++;}
     mesesTimeline.push({m,a,str:a+'-'+String(m+1).padStart(2,'0'),lbl:MESES[m]+' '+a});
   }
 
-  const timelineHTML=mesesTimeline.map((mes,ti)=>{
+  // Construir timeline fuera del template para evitar bugs con _pctMode en template anidado
+  const timelineRows=mesesTimeline.map((mes,ti)=>{
     const items=[];
-    // Recurrentes activos en este mes
+
+    // Adjudicados recurrentes
     adjNegs.forEach(n=>{
       if(n.tipo==='recurrente'||n.tipo==='ambos'){
-        const fi=n.fechaInicio||'0000-00';
-        if(!n.fechaInicio||fi<=mes.str){
+        if(!n.fechaInicio||n.fechaInicio<=mes.str){
           const np=(n.participantes||[]).length||1;
-          const monto=Number(n.montoRec||0)/np;
+          const monto=Number(n.montoRec||0)/np*(1-OP_PCT);
           const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
-          items.push({title,monto,tipo:'Recurrente',color:'var(--purple)',bar:'#6366f1'});
-        }
-      }
-    });
-    // Spot que inicia en este mes exacto
-    adjNegs.forEach(n=>{
-      if(n.tipo==='spot'||n.tipo==='ambos'){
-        if(!n.fechaInicio||n.fechaInicio===mes.str){
-          const np=(n.participantes||[]).length||1;
-          const monto=Number(n.montoSpot||0)/np;
-          const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
-          items.push({title,monto,tipo:'Spot',color:'var(--cyan)',bar:'#0ea5e9'});
-        }
-      }
-    });
-    // Prospectos que inciden en este mes
-    proNegs.forEach(n=>{
-      if(n.tipo==='recurrente'||n.tipo==='ambos'){
-        const fi=n.fechaInicio||'0000-00';
-        if(!n.fechaInicio||fi<=mes.str){
-          const np=(n.participantes||[]).length||1;
-          const monto=Number(n.montoRec||0)/np;
-          const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
-          items.push({title,monto,tipo:'Prospecto Rec.',color:'var(--gold)',bar:'#f59e0b',prospecto:true});
-        }
-      }
-      if(n.tipo==='spot'||n.tipo==='ambos'){
-        if(!n.fechaInicio||n.fechaInicio===mes.str){
-          const np=(n.participantes||[]).length||1;
-          const monto=Number(n.montoSpot||0)/np;
-          const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
-          items.push({title,monto,tipo:'Prospecto Spot',color:'var(--gold)',bar:'#f59e0b',prospecto:true});
+          items.push({title,monto,tipo:'Recurrente (neto)',color:'var(--purple)',bar:'#6366f1',prospecto:false});
         }
       }
     });
 
-    const totalMes=items.reduce((s,x)=>s+x.monto,0);
+    // Adjudicados spot
+    adjNegs.forEach(n=>{
+      if(n.tipo==='spot'||n.tipo==='ambos'){
+        if(!n.fechaInicio||n.fechaInicio===mes.str){
+          const np=(n.participantes||[]).length||1;
+          const monto=Number(n.montoSpot||0)/np*(1-OP_PCT);
+          const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
+          items.push({title,monto,tipo:'Spot (neto)',color:'var(--cyan)',bar:'#0ea5e9',prospecto:false});
+        }
+      }
+    });
+
+    // Prospectos — aplicar _pctMode aquí, fuera del template
+    proNegs.forEach(n=>{
+      const pct=_pctMode?(n.probAdjudicacion||50)/100:1;
+      const pctTag=_pctMode?` (${n.probAdjudicacion||50}%)`:' (valor completo)';
+      if(n.tipo==='recurrente'||n.tipo==='ambos'){
+        if(!n.fechaInicio||n.fechaInicio<=mes.str){
+          const np=(n.participantes||[]).length||1;
+          const monto=Number(n.montoRec||0)/np*pct*(1-OP_PCT);
+          const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
+          items.push({title,monto,tipo:'Prospecto Rec.'+pctTag,color:'var(--gold)',bar:'#f59e0b',prospecto:true});
+        }
+      }
+      if(n.tipo==='spot'||n.tipo==='ambos'){
+        if(!n.fechaInicio||n.fechaInicio===mes.str){
+          const np=(n.participantes||[]).length||1;
+          const monto=Number(n.montoSpot||0)/np*pct*(1-OP_PCT);
+          const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
+          items.push({title,monto,tipo:'Prospecto Spot'+pctTag,color:'var(--gold)',bar:'#f59e0b',prospecto:true});
+        }
+      }
+    });
+
     const totalAdj=items.filter(x=>!x.prospecto).reduce((s,x)=>s+x.monto,0);
     const totalPro=items.filter(x=>x.prospecto).reduce((s,x)=>s+x.monto,0);
+    const isFirst=ti===0;
 
     const itemsHTML=items.length
       ? items.map(it=>`<div class="tl-item">
@@ -1378,12 +1382,11 @@ function renderPersonaBody(sid, ac){
         </div>`).join('')
       : '<div class="tl-empty">Sin ingresos</div>';
 
-    const isFirst=ti===0;
     return `<div class="tl-mes">
       <div class="tl-mes-header" onclick="togMes(this)">
         <div>
           <div class="tl-mes-lbl">${mes.lbl}${ti===0?' <span style="font-size:10px;color:var(--purple);font-weight:600;margin-left:6px">Este mes</span>':''}</div>
-          ${totalPro>0?`<div style="font-size:10px;color:var(--muted);margin-top:2px">+${fmt(totalPro)} en prospectos</div>`:''}
+          ${totalPro>0?`<div style="font-size:10px;color:var(--muted);margin-top:2px">+${fmt(totalPro)} prospectos</div>`:''}
         </div>
         <div style="display:flex;align-items:center;gap:10px">
           <div class="tl-mes-total" style="color:${totalAdj>0?'var(--green)':'var(--dim)'}">${fmt(totalAdj)}</div>
@@ -1396,15 +1399,14 @@ function renderPersonaBody(sid, ac){
     </div>`;
   }).join('');
 
-  // Negocios activos
-  const negActivosHTML=adjNegs.map(n=>{
+  // Lista adjudicados
+  const adjHTML=adjNegs.map(n=>{
     const np=(n.participantes||[]).length||1;
-    const monto=n.tipo==='recurrente'?Number(n.montoRec||0)/np:Number(n.montoSpot||0)/np;
-    const sub=n.tipo==='recurrente'?'/mes':n.tipo==='ambos'?'+spot':'único';
+    const monto=n.tipo==='recurrente'?Number(n.montoRec||0)/np*(1-OP_PCT):Number(n.montoSpot||0)/np*(1-OP_PCT);
+    const sub=n.tipo==='recurrente'?'/mes neto':n.tipo==='ambos'?'+spot neto':'único neto';
     const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
-    const ac2=n.estado==='adjudicado'?'#10b981':'#f59e0b';
     return `<div class="p-neg-item">
-      <div class="p-neg-accent" style="background:${ac2}"></div>
+      <div class="p-neg-accent" style="background:#10b981"></div>
       <div class="p-neg-info">
         <div class="p-neg-name">${title}</div>
         <div style="display:flex;gap:5px;margin-top:3px">
@@ -1417,49 +1419,57 @@ function renderPersonaBody(sid, ac){
     </div>`;
   }).join('');
 
+  // Lista prospectos — _pctMode aplicado aquí también
+  const proHTML=proNegs.map(n=>{
+    const np=(n.participantes||[]).length||1;
+    const pct=_pctMode?(n.probAdjudicacion||50)/100:1;
+    const montoBase=n.tipo==='recurrente'?Number(n.montoRec||0)/np*(1-OP_PCT):Number(n.montoSpot||0)/np*(1-OP_PCT);
+    const monto=montoBase*pct;
+    const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
+    const brutoTag=_pctMode&&n.probAdjudicacion!=null?`<div style="font-size:9px;color:var(--dim);text-align:right">${fmt(montoBase)} bruto</div>`:'';
+    return `<div class="p-neg-item">
+      <div class="p-neg-accent" style="background:#f59e0b"></div>
+      <div class="p-neg-info">
+        <div class="p-neg-name">${title}</div>
+        <div style="display:flex;gap:5px;margin-top:3px">
+          <span class="pill pill-pro">Prospecto</span>
+          ${n.probAdjudicacion!=null?`<span class="pill pill-pct">${n.probAdjudicacion}%</span>`:''}
+          ${n.fechaInicio?`<span class="pill pill-date">${n.fechaInicio}</span>`:''}
+        </div>
+      </div>
+      <div class="p-neg-monto" style="color:var(--gold)">${fmt(monto)}${brutoTag}</div>
+    </div>`;
+  }).join('');
+
+  const proLabel=_pctMode
+    ?'🎯 Prospectos <span style="font-size:10px;color:var(--muted);font-weight:400">— ponderado por % adjudicación</span>'
+    :'🎯 Prospectos <span style="font-size:10px;color:var(--muted);font-weight:400">— valor completo (sin ponderar)</span>';
+
   body.innerHTML=`
     <div class="persona-totals">
-      <div class="p-total-card" data-tip="Suma de todos los ingresos spot en negocios adjudicados">
-        <div class="p-total-lbl">⚡ Spot total</div>
+      <div class="p-total-card">
+        <div class="p-total-lbl">⚡ Spot total (neto)</div>
         <div class="p-total-val" style="color:var(--cyan)">${fmt(totalSpot)}</div>
       </div>
-      <div class="p-total-card" data-tip="Ingreso recurrente mensual de negocios adjudicados">
-        <div class="p-total-lbl">🔄 Recurrente / mes</div>
+      <div class="p-total-card">
+        <div class="p-total-lbl">🔄 Recurrente / mes (neto)</div>
         <div class="p-total-val" style="color:var(--purple)">${fmt(totalRec)}/mes</div>
       </div>
     </div>
-
     <div class="p-sec-label">
       <span>📅 Próximos 12 meses</span>
       <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--dim)">Clic para expandir</span>
     </div>
-    <div class="timeline">${timelineHTML}</div>
-
+    <div class="timeline">${timelineRows}</div>
     ${adjNegs.length>0?`
-    <div class="p-sec-label" style="margin-top:24px"><span>🏆 Negocios adjudicados</span></div>
-    ${negActivosHTML}`:''}
-
+      <div class="p-sec-label" style="margin-top:24px"><span>🏆 Adjudicados</span></div>
+      ${adjHTML}`:''}
     ${proNegs.length>0?`
-    <div class="p-sec-label"><span>🎯 Prospectos</span></div>
-    ${proNegs.map(n=>{
-      const np=(n.participantes||[]).length||1;
-      const monto=n.tipo==='recurrente'?Number(n.montoRec||0)/np:Number(n.montoSpot||0)/np;
-      const title=(n.empresa?n.empresa+' — ':'')+( n.solucion||n.nombre||'');
-      return `<div class="p-neg-item">
-        <div class="p-neg-accent" style="background:#f59e0b"></div>
-        <div class="p-neg-info">
-          <div class="p-neg-name">${title}</div>
-          <div style="display:flex;gap:5px;margin-top:3px">
-            <span class="pill pill-pro">Prospecto</span>
-            ${n.probAdjudicacion!=null?`<span class="pill pill-pct">${n.probAdjudicacion}%</span>`:''}
-            ${n.fechaInicio?`<span class="pill pill-date">${n.fechaInicio}</span>`:''}
-          </div>
-        </div>
-        <div class="p-neg-monto" style="color:var(--gold)">${fmt(monto)}</div>
-      </div>`;
-    }).join('')}`:''}
+      <div class="p-sec-label">${proLabel}</div>
+      ${proHTML}`:''}
   `;
 }
+
 
 function togMes(header){
   const body=header.nextElementSibling;
