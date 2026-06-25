@@ -977,8 +977,11 @@ function updMonto(){
   const t=FS.tipo;
   document.getElementById('g-spot').style.display=(t==='spot'||t==='ambos')?'':'none';
   document.getElementById('g-rec').style.display=(t==='recurrente'||t==='ambos')?'':'none';
-  const lbl=FS.moneda==='UF'?'UF':'CLP';
-  const e1=document.getElementById('lbl-monto-spot');const e2=document.getElementById('lbl-monto-rec');
+  // Label refleja la moneda activa real
+  const m=FS.moneda;
+  const lbl=m==='UF'?'UF':m==='EUR'?'EUR':m==='USD'?'USD':'CLP';
+  const e1=document.getElementById('lbl-monto-spot');
+  const e2=document.getElementById('lbl-monto-rec');
   if(e1) e1.textContent='Monto Spot ('+lbl+') *';
   if(e2) e2.textContent='Monto Recurrente ('+lbl+') *';
 }
