@@ -387,11 +387,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-he
         <div class="scard-val" id="s-anual" style="color:var(--coral)">—</div>
         <div class="scard-sub" id="s-anual-sub">proyectado</div>
       </div>
-      <div class="scard scard-op" data-tip="10% de costos operacionales descontado del ingreso de cada socio — fondo acumulado">
+      <div class="scard scard-op" data-tip="10% de costos operacionales — del mes seleccionado y acumulado al mes">
         <div class="scard-icon">⚙️</div>
-        <div class="scard-lbl">Fondo Operación</div>
+        <div class="scard-lbl">Fondo Op. <span id="s-op-mes-lbl" style="font-weight:400;text-transform:none;font-size:9px"></span></div>
         <div class="scard-val" id="s-op">—</div>
-        <div class="scard-sub">10% acumulado</div>
+        <div class="scard-sub" id="s-op-sub">— acumulado: <span id="s-op-acum" style="font-weight:700;color:#a5b4fc">—</span></div>
       </div>
     </div>
 
@@ -493,8 +493,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-he
     <div class="fg">
       <label class="fl">Moneda</label>
       <div style="display:flex;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:3px;gap:2px;width:fit-content">
-        <button class="tgb" id="tg-clp" onclick="selMoneda('CLP')">$ CLP</button>
-        <button class="tgb" id="tg-uf" onclick="selMoneda('UF')">UF</button>
+        <button class="tgb" id="tg-clp" onclick="selMoneda(entidad==='europa'?'EUR':'CLP')"><span id="lbl-mon-clp">$ CLP</span></button>
+        <button class="tgb" id="tg-uf" onclick="selMoneda(entidad==='europa'?'USD':'UF')"><span id="lbl-mon-alt">UF</span></button>
       </div>
       <div class="uf-info" id="uf-info" style="display:none">1 UF = <span id="uf-valor" style="font-weight:600;color:var(--purple)">cargando...</span></div>
     </div>
@@ -736,12 +736,34 @@ function renderStats(){
   });
   const anual=spotTot+recTot*mesesRest;
 
-  // Fondo operación = 10% del total bruto acumulado
-  let fondoOp=0;
+  const mesStr2=proyAnio+'-'+String(proyMes+1).padStart(2,'0');
+  // Fondo operación DEL MES: 10% de lo que entra ese mes
+  let fondoMes=0;
   adjAll.forEach(n=>{
-    if(n.tipo==='spot'||n.tipo==='ambos') fondoOp+=Number(n.montoSpot||0)*OP_PCT;
-    if(n.tipo==='recurrente'||n.tipo==='ambos') fondoOp+=Number(n.montoRec||0)*mesesRest*OP_PCT;
+    if(n.tipo==='recurrente'||n.tipo==='ambos'){
+      if(!n.fechaInicio||n.fechaInicio<=mesStr2) fondoMes+=Number(n.montoRec||0)*OP_PCT;
+    }
+    if(n.tipo==='spot'||n.tipo==='ambos'){
+      if(n.fechaInicio===mesStr2||!n.fechaInicio) fondoMes+=Number(n.montoSpot||0)*OP_PCT;
+    }
   });
+  // Fondo ACUMULADO hasta el mes seleccionado
+  let fondoAcum=0;
+  adjAll.forEach(n=>{
+    if(n.tipo==='spot'||n.tipo==='ambos'){
+      if(!n.fechaInicio||n.fechaInicio<=mesStr2) fondoAcum+=Number(n.montoSpot||0)*OP_PCT;
+    }
+    // Recurrente: contar meses desde fechaInicio hasta mesStr2
+    if(n.tipo==='recurrente'||n.tipo==='ambos'){
+      const fi=n.fechaInicio||'2020-01';
+      const [fa,fm]=fi.split('-').map(Number);
+      const mesInicio=fi<=mesStr2?new Date(fa,fm-1):new Date(proyAnio,proyMes);
+      const mesFin=new Date(proyAnio,proyMes);
+      const mesesTrans=Math.max(0,(mesFin.getFullYear()-mesInicio.getFullYear())*12+(mesFin.getMonth()-mesInicio.getMonth())+1);
+      fondoAcum+=Number(n.montoRec||0)*mesesTrans*OP_PCT;
+    }
+  });
+  const fondoOp=fondoMes; // para compatibilidad
 
   document.getElementById('s-ganados').textContent=adjAll.length;
   document.getElementById('s-prospectos').textContent=proAll.length;
@@ -753,7 +775,11 @@ function renderStats(){
   document.getElementById('anio-lbl').textContent=new Date().getFullYear();
   document.getElementById('s-anual-sub').textContent=mesesRest+' meses restantes';
   const sop=document.getElementById('s-op');
-  if(sop) sop.textContent=fmt(fondoOp);
+  if(sop) sop.textContent=fmt(fondoMes)+'/mes';
+  const sopSub=document.getElementById('s-op-sub');
+  if(sopSub) sopSub.innerHTML='del mes · acumulado: <span style="font-weight:700;color:#a5b4fc">'+fmt(fondoAcum)+'</span>';
+  const sopMesLbl=document.getElementById('s-op-mes-lbl');
+  if(sopMesLbl) sopMesLbl.textContent=MESES[proyMes];
 }
 
 // ── Socios ──
@@ -942,8 +968,10 @@ function selTog(field,val){
   if(field==='estado') updFecha();
 }
 function resetTogs(){
-  FS.estado='adjudicado';FS.tipo='spot';FS.moneda='CLP';
-  selTog('estado','adjudicado');selTog('tipo','spot');selMoneda('CLP');
+  FS.estado='adjudicado';FS.tipo='spot';
+  const monedaDefault=entidad==='europa'?'EUR':'CLP';
+  FS.moneda=monedaDefault;
+  selTog('estado','adjudicado');selTog('tipo','spot');selMoneda(monedaDefault);
 }
 function updMonto(){
   const t=FS.tipo;
@@ -970,8 +998,11 @@ async function fetchUF(){
 async function selMoneda(m){
   FS.moneda=m;
   const c1=document.getElementById('tg-clp'),c2=document.getElementById('tg-uf');
-  if(c1){c1.style.background=m==='CLP'?'rgba(99,102,241,.12)':'transparent';c1.style.color=m==='CLP'?'var(--purple)':'var(--muted)';c1.style.fontWeight=m==='CLP'?'600':'500';}
-  if(c2){c2.style.background=m==='UF'?'rgba(14,165,233,.12)':'transparent';c2.style.color=m==='UF'?'var(--cyan)':'var(--muted)';c2.style.fontWeight=m==='UF'?'600':'500';}
+  // Primera opción = CLP (NPR) o EUR (Europa)
+  const isFirst=entidad==='europa'?m==='EUR':m==='CLP';
+  const isSecond=entidad==='europa'?m==='USD':m==='UF';
+  if(c1){c1.style.background=isFirst?'rgba(99,102,241,.12)':'transparent';c1.style.color=isFirst?'var(--purple)':'var(--muted)';c1.style.fontWeight=isFirst?'600':'500';}
+  if(c2){c2.style.background=isSecond?'rgba(14,165,233,.12)':'transparent';c2.style.color=isSecond?'var(--cyan)':'var(--muted)';c2.style.fontWeight=isSecond?'600':'500';}
   const ui=document.getElementById('uf-info');
   if(m==='UF'){
     if(ui) ui.style.display='flex';
@@ -1037,6 +1068,11 @@ function openModal(id){
   document.getElementById('mo-title').textContent=id?'Editar Negocio':'Nuevo Negocio';
   ['i-empresa','i-solucion','i-spot','i-rec','i-fecha','i-prob'].forEach(fid=>{const el=document.getElementById(fid);if(el) el.value='';});
   ['clp-spot-preview','clp-rec-preview'].forEach(fid=>{const el=document.getElementById(fid);if(el) el.style.display='none';});
+  // Actualizar labels moneda según entidad
+  const monClp=document.getElementById('lbl-mon-clp');
+  const monAlt=document.getElementById('lbl-mon-alt');
+  if(monClp) monClp.textContent=entidad==='europa'?'€ EUR':'$ CLP';
+  if(monAlt) monAlt.textContent=entidad==='europa'?'US$ USD':'UF';
   resetTogs();updMonto();updFecha();renderChks();
   if(id){
     const n=negocios.find(x=>x.id===id);
